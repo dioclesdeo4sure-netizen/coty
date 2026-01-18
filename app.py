@@ -142,5 +142,3 @@ with st.sidebar:
 
     st.selectbox("🌍 Lugha", ["Kiswahili", "English"])
     st.toggle("🧠 Smart AI Mode", value=True)
-
-    if st.button("🧹 Futa Mazungumzo
