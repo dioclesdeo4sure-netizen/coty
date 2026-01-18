@@ -1,18 +1,3 @@
-Conversation opened. 1 unread message.
-
-Skip to content
-Using Gmail with screen readers
-1 of 287
-(no subject)
-Inbox
-
-Mwanaiza Mnyuku <mmnyuku@gmail.com>
-9:01 AM (0 minutes ago)
-to me
-
-It looks like this message is in Swahili
-# app.py (Msingo wa Streamlit Chatbot - Imetengenezwa kwa ajili ya Render)
-
 import streamlit as st
 import os 
 from google import genai
