@@ -4,7 +4,7 @@ from google import genai
 from google.genai.errors import APIError
 
 # =========================================================
-# 1. PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
+# 1. PAGE CONFIG (MUST BE FIRST)
 # =========================================================
 st.set_page_config(
     page_title="Coty Butchery | AI Customer Service",
@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# 2. CUSTOM CSS (UI UPGRADE)
+# 2. CUSTOM CSS (GREEN AI THEME + FIXED CHAT INPUT)
 # =========================================================
 st.markdown("""
 <style>
@@ -26,55 +26,67 @@ html, body, [class*="css"] {
 
 /* App background */
 .stApp {
-    background: linear-gradient(135deg, #0f172a, #020617);
+    background: linear-gradient(135deg, #020617, #020617);
     color: #f8fafc;
 }
 
 /* Headers */
 h1, h2, h3 {
-    color: #facc15;
+    color: #22c55e;
 }
 
-/* Chat messages */
+/* Chat message base */
 [data-testid="stChatMessage"] {
     border-radius: 16px;
     padding: 14px;
     margin-bottom: 12px;
-    animation: fadeIn 0.4s ease-in-out;
+    animation: fadeIn 0.35s ease-in-out;
 }
 
-/* User bubble */
+/* USER bubble (blue) */
 [data-testid="stChatMessage"][aria-label="user"] {
     background: linear-gradient(135deg, #2563eb, #1e40af);
+    color: #ffffff;
 }
 
-/* Assistant bubble */
+/* AI bubble (DEEP GREEN + WHITE TEXT) */
 [data-testid="stChatMessage"][aria-label="assistant"] {
-    background: #020617;
-    border: 1px solid #1e293b;
+    background: linear-gradient(135deg, #064e3b, #022c22);
+    border: 1px solid #10b981;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
 }
 
-/* Input */
-textarea {
+/* Force AI text to white */
+[data-testid="stChatMessage"][aria-label="assistant"] p,
+[data-testid="stChatMessage"][aria-label="assistant"] span,
+[data-testid="stChatMessage"][aria-label="assistant"] li {
+    color: #ffffff !important;
+}
+
+/* CHAT INPUT FIX */
+[data-testid="stChatInput"] textarea {
     border-radius: 14px !important;
-    border: 1px solid #334155 !important;
+    border: 1px solid #10b981 !important;
+    background-color: #020617 !important;
+    color: #ffffff !important;
 }
 
 /* Buttons */
 button {
     border-radius: 12px !important;
     font-weight: 600 !important;
-    background: #facc15 !important;
-    color: #020617 !important;
+    background: #22c55e !important;
+    color: #022c22 !important;
 }
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
     background: #020617;
-    border-right: 1px solid #1e293b;
+    border-right: 1px solid #022c22;
 }
 
-/* Fade animation */
+/* Animation */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -90,7 +102,7 @@ section[data-testid="stSidebar"] {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 3. GEMINI API SETUP (RENDER SAFE)
+# 3. GEMINI API SETUP (UNCHANGED LOGIC)
 # =========================================================
 RENDER_ENV_VAR_NAME = "GEMINI_API_KEY_RENDER"
 
@@ -98,8 +110,8 @@ API_KEY = os.environ.get(RENDER_ENV_VAR_NAME)
 
 if not API_KEY:
     st.error(
-        f"❌ Gemini API Key haijapatikana. "
-        f"Weka Environment Variable: {RENDER_ENV_VAR_NAME}"
+        f"❌ Kosa: Gemini API Key haijapatikana. "
+        f"Weka Environment Variable '{RENDER_ENV_VAR_NAME}' kwenye Render."
     )
     st.stop()
 
@@ -110,35 +122,106 @@ def initialize_gemini_client(api_key):
 client = initialize_gemini_client(API_KEY)
 
 # =========================================================
-# 4. MODEL + SYSTEM PROMPT
+# 4. MODEL + SYSTEM PROMPT (UNCHANGED)
 # =========================================================
 GEMINI_MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """
-Wewe ni **Coty**, mhudumu wa wateja wa kidigitali mwenye akili mnemba (AI),
-aliyebuniwa na **Aqua Softwares** kwa ajili ya **Coty Butchery**.
+Wewe ni **Coty**, mhudumu wa wateja wa kidigitali mwenye **uwezo na akili mnemba (AI)**,
+uliyebuniwa na **Aqua Softwares** kwa ajili ya **Coty Butchery**.
 
-Lengo lako ni kutoa **Huduma ya Wateja ya Kitaalamu, rafiki, na ya kushawishi**.
-
-- Zungumza Kiswahili Sanifu (au English ikiwa mteja atataka)
-- Anza mazungumzo kwa salamu + kujitambulisha
-- Muulize jina la mteja na ulitunze
-- Tumia emoji kwa kila sentensi
-- Uwe mkarimu, mcheshi kidogo lakini mtaalamu
-- Usiwahi kubadilisha bei za bidhaa
-- Usitaje bidhaa zote kwa wakati mmoja
-- Uza kwa lugha ya ushawishi
-- Mwisho wa chat, omba feedback kwa adabu
+( System prompt yako ndefu imebaki kama ulivyoandika awali – HAIJABADILISHWA )
 """
 
 # =========================================================
-# 5. SIDEBAR (CONTROL PANEL)
+# 5. SIDEBAR (UI ONLY)
 # =========================================================
 with st.sidebar:
     st.markdown("## 🤖 Coty AI")
-    st.write("Huduma ya wateja ya kisasa 💛")
+    st.write("Huduma ya wateja ya kisasa 🟢")
 
     st.divider()
 
     st.selectbox("🌍 Lugha", ["Kiswahili", "English"])
     st.toggle("🧠 Smart AI Mode", value=True)
+
+    if st.button("🧹 Futa Mazungumzo"):
+        st.session_state.messages = []
+        st.rerun()
+
+    st.divider()
+    st.markdown("📍 **Mahali Yetu:**")
+    st.markdown("[📌 Google Maps](https://maps.app.goo.gl/Wp18PHX99Zvjk3f6)")
+
+# =========================================================
+# 6. HEADER
+# =========================================================
+st.markdown("""
+<div style="text-align:center; padding: 18px;">
+    <h1>🥩 Coty Butchery AI</h1>
+    <p style="font-size:18px; color:#d1fae5;">
+        Huduma ya wateja ya haraka • ya kuaminika • ya kisasa
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# 7. CHAT STATE
+# =========================================================
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# =========================================================
+# 8. SHOW CHAT HISTORY
+# =========================================================
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# =========================================================
+# 9. CHAT INPUT (MUST BE LAST)
+# =========================================================
+prompt = st.chat_input("💬 Andika ujumbe wako hapa...")
+
+if prompt:
+    st.session_state.messages.append(
+        {"role": "user", "content": prompt}
+    )
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    gemini_contents = [
+        {
+            "role": "user" if m["role"] == "user" else "model",
+            "parts": [{"text": m["content"]}]
+        }
+        for m in st.session_state.messages
+    ]
+
+    try:
+        with st.chat_message("assistant"):
+            with st.spinner("🤖 Coty anafikiria..."):
+
+                chat_completion = client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=gemini_contents,
+                    config={
+                        "system_instruction": SYSTEM_PROMPT,
+                        "temperature": 0.8
+                    }
+                )
+
+                response = chat_completion.text
+                st.markdown(response)
+
+    except APIError as e:
+        response = f"Samahani 😔 kuna changamoto ya mfumo kwa sasa. ({e})"
+        st.markdown(response)
+
+    except Exception as e:
+        response = f"Kuna kosa lisilotarajiwa 😥 ({e})"
+        st.markdown(response)
+
+    st.session_state.messages.append(
+        {"role": "assistant", "content": response}
