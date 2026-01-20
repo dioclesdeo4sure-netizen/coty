@@ -238,5 +238,4 @@ if not st.session_state.admin_mode:
                     )
                     save_message(st.session_state.session_id, "assistant", response_text)
 
-        except Exception as e:
-            st.error("Samahani, jaribu tena kidogo.")
+     
