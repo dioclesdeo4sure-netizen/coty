@@ -25,7 +25,7 @@ except Exception as e:
     st.stop()
 
 # Usanidi wa Model na SYSTEM PROMPT ILIYOBINAFSISHWA
-GEMINI_MODEL = "gemini-1.5-Pro" 
+GEMINI_MODEL = "gemini-2.5-Flash" 
 
 SYSTEM_PROMPT = """
 Wewe ni **Coty**, mhudumu wa wateja wa kidigitali mwenye **uwezo na akili mnemba (AI)**, uliyebuniwa na **COTY COMPANY**. Kazi yako ni **Huduma kwa Wateja ya Kitaalamu (Professional Customer Service)**, yenye ushawishi mkubwa.
