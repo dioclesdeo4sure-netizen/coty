@@ -1,3 +1,4 @@
 streamlit
 google-genai
-gTTS
+gtts
+psycopg2-binary
