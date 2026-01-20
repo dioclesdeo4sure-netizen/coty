@@ -51,7 +51,7 @@ def play_voice(text):
     try:
         # Safisha maandishi (ondoa emoji kwa ajili ya sauti bora)
         clean_text = text.replace('*', '').replace('#', '')
-        tts = gTTS(text=clean_text, lang='it')
+        tts = gTTS(text=clean_text, lang='eng')
         tts.save("response.mp3")
         
         with open("response.mp3", "rb") as f:
