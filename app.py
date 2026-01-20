@@ -1,5 +1,5 @@
 # =========================================================
-# IMPORTS (ZIKO JUU KAMA KAWAIDA)
+# IMPORTS
 # =========================================================
 import streamlit as st
 import os
@@ -17,12 +17,14 @@ import base64
 st.set_page_config(page_title="Coty Butchery AI", page_icon="🥩")
 
 # =========================================================
-# DATABASE CONNECTION (RENDER POSTGRES)
+# DATABASE CONNECTION
 # =========================================================
 def get_db_connection():
     db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        st.error("DATABASE_URL haijawekwa kwenye Environment Variables!")
+        st.stop()
     result = urlparse(db_url)
-
     return psycopg2.connect(
         database=result.path[1:],
         user=result.username,
@@ -30,6 +32,27 @@ def get_db_connection():
         host=result.hostname,
         port=result.port
     )
+
+# =========================================================
+# INIT DB - CREATE TABLE AUTOMATICALLY
+# =========================================================
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id SERIAL PRIMARY KEY,
+            session_id TEXT,
+            role TEXT,
+            message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
 
 # =========================================================
 # DATABASE HELPERS
@@ -58,11 +81,10 @@ def load_messages(session_id):
     return rows
 
 # =========================================================
-# API KEY (RENDER ENV)
+# GEMINI AI SETUP
 # =========================================================
 RENDER_ENV_VAR_NAME = "GEMINI_API_KEY_RENDER"
 API_KEY = os.environ.get(RENDER_ENV_VAR_NAME)
-
 if not API_KEY:
     st.error(f"Kosa: Weka API Key kwenye Render: {RENDER_ENV_VAR_NAME}")
     st.stop()
@@ -71,7 +93,7 @@ client = genai.Client(api_key=API_KEY)
 GEMINI_MODEL = "gemini-2.5-flash"
 
 # =========================================================
-# SYSTEM PROMPT (HAIJAGUSWA)
+# SYSTEM PROMPT (AI LOGIC HAIBADILISHWI)
 # =========================================================
 SYSTEM_PROMPT = """
 Wewe ni Coty, mhudumu wa wateja wa kidigitali mwenye uwezo wa AI, uliyebuniwa na Aqua Softwares. 
@@ -98,14 +120,11 @@ MAAGIZO YA ZIADA:
 """
 
 # =========================================================
-# SESSION ID (HII NDIYO INAZUIA CHAT KUPOTEA)
+# SESSION MANAGEMENT
 # =========================================================
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-# =========================================================
-# LOAD CHAT HISTORY KUTOKA DATABASE
-# =========================================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
     history = load_messages(st.session_state.session_id)
@@ -115,7 +134,7 @@ if "messages" not in st.session_state:
         )
 
 # =========================================================
-# SAUTI (gTTS)
+# GTTs VOICE FUNCTION
 # =========================================================
 def play_voice(text):
     try:
@@ -136,69 +155,86 @@ def play_voice(text):
         pass
 
 # =========================================================
-# UI
+# ADMIN DASHBOARD
 # =========================================================
-st.title("🥩 Karibu Coty Butchery")
-st.caption("Mhudumu wako wa kidigitali anayekujali")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234")
+if "admin_mode" not in st.session_state:
+    st.session_state.admin_mode = False
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+st.sidebar.title("Admin Login")
+if not st.session_state.admin_mode:
+    pw_input = st.sidebar.text_input("Enter Admin Password", type="password")
+    if st.sidebar.button("Login"):
+        if pw_input == ADMIN_PASSWORD:
+            st.session_state.admin_mode = True
+            st.experimental_rerun()
+        else:
+            st.sidebar.error("Password si sahihi")
 
 # =========================================================
-# CHAT INPUT (AI LOGIC HAIJAGUSWA)
+# IF ADMIN, SHOW DASHBOARD
 # =========================================================
-if prompt := st.chat_input("Andika ujumbe hapa..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    save_message(st.session_state.session_id, "user", prompt)
-
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    gemini_contents = []
-    for m in st.session_state.messages:
-        role = "user" if m["role"] == "user" else "model"
-        gemini_contents.append(
-            {"role": role, "parts": [{"text": m["content"]}]}
-        )
-
-    try:
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = client.models.generate_content(
-                    model=GEMINI_MODEL,
-                    contents=gemini_contents,
-                    config={
-                        "system_instruction": SYSTEM_PROMPT,
-                        "temperature": 0.8,
-                    }
-                )
-
-                response_text = response.text
-                st.markdown(response_text)
-                play_voice(response_text)
-
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": response_text}
-                )
-                save_message(st.session_state.session_id, "assistant", response_text)
-
-    except Exception as e:
-        st.error("Samahani, jaribu tena kidogo.")
-def init_db():
+if st.session_state.admin_mode:
+    st.title("🛠️ Admin Dashboard - Coty Butchery AI")
+    
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id SERIAL PRIMARY KEY,
-            session_id TEXT,
-            role TEXT,
-            message TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
+    cur.execute("SELECT DISTINCT session_id FROM conversations ORDER BY created_at DESC")
+    sessions = [row[0] for row in cur.fetchall()]
     cur.close()
     conn.close()
+    
+    selected_session = st.selectbox("Chagua session ya kuona", sessions)
+    
+    if selected_session:
+        messages = load_messages(selected_session)
+        st.markdown(f"**Conversation for session:** {selected_session}")
+        for role, msg in messages:
+            st.markdown(f"**{role.upper()}**: {msg}")
 
-init_db()
+# =========================================================
+# CUSTOMER CHAT UI
+# =========================================================
+if not st.session_state.admin_mode:
+    st.title("🥩 Karibu Coty Butchery")
+    st.caption("Mhudumu wako wa kidigitali anayekujali 🌹🥩")
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Andika ujumbe hapa..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        save_message(st.session_state.session_id, "user", prompt)
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Convert history to Gemini format
+        gemini_contents = []
+        for m in st.session_state.messages:
+            role = "user" if m["role"] == "user" else "model"
+            gemini_contents.append(
+                {"role": role, "parts": [{"text": m["content"]}]}
+            )
+
+        try:
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    response = client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=gemini_contents,
+                        config={
+                            "system_instruction": SYSTEM_PROMPT,
+                            "temperature": 0.8,
+                        }
+                    )
+                    response_text = response.text
+                    st.markdown(response_text)
+                    play_voice(response_text)
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": response_text}
+                    )
+                    save_message(st.session_state.session_id, "assistant", response_text)
+
+        except Exception as e:
+            st.error("Samahani, jaribu tena kidogo.")
