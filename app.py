@@ -7,7 +7,6 @@ import uuid
 import psycopg2
 from urllib.parse import urlparse
 from google import genai
-from google.genai.errors import APIError
 from gtts import gTTS
 import base64
 
@@ -83,10 +82,9 @@ def load_messages(session_id):
 # =========================================================
 # GEMINI AI SETUP
 # =========================================================
-RENDER_ENV_VAR_NAME = "GEMINI_API_KEY_RENDER"
-API_KEY = os.environ.get(RENDER_ENV_VAR_NAME)
+API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
 if not API_KEY:
-    st.error(f"Kosa: Weka API Key kwenye Render: {RENDER_ENV_VAR_NAME}")
+    st.error("Kosa: Weka GEMINI_API_KEY_RENDER kwenye environment variables!")
     st.stop()
 
 client = genai.Client(api_key=API_KEY)
@@ -137,44 +135,51 @@ if "messages" not in st.session_state:
 # GTTs VOICE FUNCTION
 # =========================================================
 def play_voice(text):
-    try:
-        clean_text = text.replace('*', '').replace('#', '')
-        tts = gTTS(text=clean_text, lang='en')
-        tts.save("response.mp3")
-        with open("response.mp3", "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-            st.markdown(
-                f"""
-                <audio autoplay>
-                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                </audio>
-                """,
-                unsafe_allow_html=True
-            )
-    except:
-        pass
+    clean_text = text.replace('*', '').replace('#', '')
+    tts = gTTS(text=clean_text, lang='en')
+    tts.save("response.mp3")
+    with open("response.mp3", "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+        st.markdown(
+            f"""
+            <audio autoplay>
+            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+            </audio>
+            """,
+            unsafe_allow_html=True
+        )
+
+# =========================================================
+# SIDEBAR PAGE SELECTION
+# =========================================================
+st.sidebar.title("Coty Butchery AI")
+page_options = ["Customer Chat"]
+# Admin page option visible tu kama password sahihi imeingizwa
+if "admin_mode" not in st.session_state:
+    st.session_state.admin_mode = False
+
+if st.session_state.admin_mode:
+    page_options.append("Admin Page")
+
+page = st.sidebar.radio("Chagua Page", page_options)
 
 # =========================================================
 # ADMIN LOGIN
 # =========================================================
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234")
-if "admin_mode" not in st.session_state:
-    st.session_state.admin_mode = False
-
-st.sidebar.title("Admin Login")
-if not st.session_state.admin_mode:
+if page == "Admin Page" and not st.session_state.admin_mode:
     pw_input = st.sidebar.text_input("Enter Admin Password", type="password")
     if st.sidebar.button("Login"):
-        if pw_input == ADMIN_PASSWORD:
+        if pw_input == os.environ.get("ADMIN_PASSWORD", "1234"):
             st.session_state.admin_mode = True
             st.experimental_rerun()
         else:
             st.sidebar.error("Password si sahihi")
 
 # =========================================================
-# ADMIN PAGE
+# RENDER PAGES
 # =========================================================
-if st.session_state.admin_mode:
+# ADMIN PAGE
+if st.session_state.admin_mode and page == "Admin Page":
     st.title("🛠️ Admin Page - Coty Butchery AI")
     
     conn = get_db_connection()
@@ -192,50 +197,36 @@ if st.session_state.admin_mode:
         for role, msg in messages:
             st.markdown(f"**{role.upper()}**: {msg}")
 
-# =========================================================
-# CUSTOMER AI CHAT UI
-# =========================================================
-if not st.session_state.admin_mode:
+# CUSTOMER CHAT UI
+if page == "Customer Chat":
     st.title("🥩 Karibu Coty Butchery AI")
     st.caption("Mhudumu wako wa kidigitali anayekujali 🌹🥩")
 
-    # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Chat input
     if prompt := st.chat_input("Andika ujumbe hapa..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         save_message(st.session_state.session_id, "user", prompt)
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Convert history to Gemini format
+        # AI response (no try/except)
         gemini_contents = []
         for m in st.session_state.messages:
             role = "user" if m["role"] == "user" else "model"
-            gemini_contents.append(
-                {"role": role, "parts": [{"text": m["content"]}]}
-            )
+            gemini_contents.append({"role": role, "parts": [{"text": m["content"]}]})
 
-        try:
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    response = client.models.generate_content(
-                        model=GEMINI_MODEL,
-                        contents=gemini_contents,
-                        config={
-                            "system_instruction": SYSTEM_PROMPT,
-                            "temperature": 0.8,
-                        }
-                    )
-                    response_text = response.text
-                    st.markdown(response_text)
-                    play_voice(response_text)
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": response_text}
-                    )
-                    save_message(st.session_state.session_id, "assistant", response_text)
-
-     
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=gemini_contents,
+                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.8}
+                )
+                response_text = response.text
+                st.markdown(response_text)
+                play_voice(response_text)
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
+                save_message(st.session_state.session_id, "assistant", response_text)
