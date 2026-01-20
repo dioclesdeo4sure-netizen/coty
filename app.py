@@ -51,7 +51,7 @@ def play_voice(text):
     try:
         # Safisha maandishi (ondoa emoji kwa ajili ya sauti bora)
         clean_text = text.replace('*', '').replace('#', '')
-        tts = gTTS(text=clean_text, lang='sw')
+        tts = gTTS(text=clean_text, lang='en')
         tts.save("response.mp3")
         
         with open("response.mp3", "rb") as f:
@@ -92,7 +92,7 @@ if prompt := st.chat_input("Andika ujumbe hapa..."):
 
     try:
         with st.chat_message("assistant"):
-            with st.spinner("Coty anajibu..."):
+            with st.spinner("Thinking..."):
                 chat_completion = client.models.generate_content(
                     model=GEMINI_MODEL,
                     contents=gemini_contents,
