@@ -185,3 +185,20 @@ if prompt := st.chat_input("Andika ujumbe hapa..."):
 
     except Exception as e:
         st.error("Samahani, jaribu tena kidogo.")
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS conversations (
+            id SERIAL PRIMARY KEY,
+            session_id TEXT,
+            role TEXT,
+            message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
