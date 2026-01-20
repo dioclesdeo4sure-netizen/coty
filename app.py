@@ -18,7 +18,7 @@ if not API_KEY:
 
 # Initialize Gemini Client
 client = genai.Client(api_key=API_KEY)
-GEMINI_MODEL = "gemini-1.5-pro"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 # --- LOGIC YAKO YA COTY BUTCHERY (SYSTEM PROMPT) ---
 SYSTEM_PROMPT = """
