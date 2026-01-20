@@ -14,7 +14,7 @@ import base64
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-st.set_page_config(page_title="Coty Butchery AI", page_icon="🥩")
+st.set_page_config(page_title="Coty Butchery AI", page_icon="🥩", layout="wide")
 
 # =========================================================
 # DATABASE CONNECTION
@@ -93,7 +93,7 @@ client = genai.Client(api_key=API_KEY)
 GEMINI_MODEL = "gemini-2.5-flash"
 
 # =========================================================
-# SYSTEM PROMPT (AI LOGIC HAIBADILISHWI)
+# SYSTEM PROMPT (AI LOGIC)
 # =========================================================
 SYSTEM_PROMPT = """
 Wewe ni Coty, mhudumu wa wateja wa kidigitali mwenye uwezo wa AI, uliyebuniwa na Aqua Softwares. 
@@ -155,7 +155,7 @@ def play_voice(text):
         pass
 
 # =========================================================
-# ADMIN DASHBOARD
+# ADMIN LOGIN
 # =========================================================
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234")
 if "admin_mode" not in st.session_state:
@@ -172,10 +172,10 @@ if not st.session_state.admin_mode:
             st.sidebar.error("Password si sahihi")
 
 # =========================================================
-# IF ADMIN, SHOW DASHBOARD
+# ADMIN PAGE
 # =========================================================
 if st.session_state.admin_mode:
-    st.title("🛠️ Admin Dashboard - Coty Butchery AI")
+    st.title("🛠️ Admin Page - Coty Butchery AI")
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -193,16 +193,18 @@ if st.session_state.admin_mode:
             st.markdown(f"**{role.upper()}**: {msg}")
 
 # =========================================================
-# CUSTOMER CHAT UI
+# CUSTOMER AI CHAT UI
 # =========================================================
 if not st.session_state.admin_mode:
-    st.title("🥩 Karibu Coty Butchery")
+    st.title("🥩 Karibu Coty Butchery AI")
     st.caption("Mhudumu wako wa kidigitali anayekujali 🌹🥩")
 
+    # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Chat input
     if prompt := st.chat_input("Andika ujumbe hapa..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         save_message(st.session_state.session_id, "user", prompt)
