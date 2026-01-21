@@ -9,7 +9,12 @@ st.set_page_config(page_title="Coty Admin", layout="wide")
 # DB CONNECTION
 # ==============================
 def get_db_connection():
-    result = urlparse(os.environ["DATABASE_URL"])
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        st.error("DATABASE_URL haipo kwenye environment variables")
+        st.stop()
+
+    result = urlparse(db_url)
     return psycopg2.connect(
         database=result.path[1:],
         user=result.username,
@@ -18,7 +23,10 @@ def get_db_connection():
         port=result.port
     )
 
-st.title("🛠️ Coty Butchery - Admin Dashboard")
+# ==============================
+# PAGE TITLE
+# ==============================
+st.title("🛠️ Coty Butchery – Admin Orders")
 
 # ==============================
 # SESSION STATE
@@ -27,16 +35,24 @@ if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 
 # ==============================
+# GET ADMIN PASSWORD SAFELY
+# ==============================
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+
+if not ADMIN_PASSWORD:
+    st.error("ADMIN_PASSWORD haijawekwa kwenye Render")
+    st.stop()
+
+# ==============================
 # LOGIN FORM
 # ==============================
 if not st.session_state.admin_logged_in:
-
-    with st.form("admin_login_form"):
-        password = st.text_input("🔐 Ingiza Admin Password", type="password")
+    with st.form("login_form"):
+        password_input = st.text_input("🔐 Weka Admin Password", type="password")
         login_btn = st.form_submit_button("INGIA")
 
         if login_btn:
-            if password == os.environ.get("ADMIN_PASSWORD"):
+            if password_input.strip() == ADMIN_PASSWORD.strip():
                 st.session_state.admin_logged_in = True
                 st.success("Login successful ✅")
                 st.experimental_rerun()
@@ -47,7 +63,6 @@ if not st.session_state.admin_logged_in:
 # ORDERS LIST
 # ==============================
 if st.session_state.admin_logged_in:
-
     st.subheader("📦 Orodha ya Oda Zote")
 
     conn = get_db_connection()
@@ -64,18 +79,19 @@ if st.session_state.admin_logged_in:
     if not orders:
         st.info("Hakuna oda bado.")
     else:
-        for i, (name, phone, order, time) in enumerate(orders, start=1):
+        for idx, (name, phone, details, time) in enumerate(orders, start=1):
             st.markdown(f"""
-            ### 🧾 ODA #{i}
-            **Jina:** {name}  
-            **Simu:** {phone}  
-            **Maelezo ya Oda:**  
-            {order}  
+            ### 🧾 ODA #{idx}
+            **Jina la Mteja:** {name}  
+            **Namba ya Simu:** {phone}  
 
-            **Muda:** {time}
+            **Alichokiagiza:**  
+            {details}
+
+            **Muda wa Oda:** {time}
             ---
             """)
 
-    if st.button("🚪 Toka (Logout)"):
+    if st.button("🚪 Logout"):
         st.session_state.admin_logged_in = False
         st.experimental_rerun()
