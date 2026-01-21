@@ -156,22 +156,7 @@ if "customer_name" not in st.session_state:
 if "phone_number" not in st.session_state:
     st.session_state.phone_number = ""
 
-# =========================================================
-# VOICE
-# =========================================================
-def play_voice(text):
-    tts = gTTS(text=text, lang="sw")
-    tts.save("voice.mp3")
-    with open("voice.mp3", "rb") as f:
-        audio = base64.b64encode(f.read()).decode()
-        st.markdown(
-            f"""
-            <audio autoplay>
-            <source src="data:audio/mp3;base64,{audio}">
-            </audio>
-            """,
-            unsafe_allow_html=True
-        )
+
 
 # =========================================================
 # UI
