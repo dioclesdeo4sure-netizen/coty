@@ -35,12 +35,12 @@ if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 
 # ==============================
-# GET ADMIN PASSWORD SAFELY
+# GET ADMIN PASSWORD
 # ==============================
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 
 if not ADMIN_PASSWORD:
-    st.error("ADMIN_PASSWORD haijawekwa kwenye Render")
+    st.error("ADMIN_PASSWORD haijawekwa kwenye Render (Admin Service)")
     st.stop()
 
 # ==============================
@@ -55,7 +55,7 @@ if not st.session_state.admin_logged_in:
             if password_input.strip() == ADMIN_PASSWORD.strip():
                 st.session_state.admin_logged_in = True
                 st.success("Login successful ✅")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Password si sahihi ❌")
 
@@ -94,4 +94,4 @@ if st.session_state.admin_logged_in:
 
     if st.button("🚪 Logout"):
         st.session_state.admin_logged_in = False
-        st.experimental_rerun()
+        st.rerun()
