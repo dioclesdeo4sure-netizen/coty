@@ -136,7 +136,7 @@ if "messages" not in st.session_state:
 # =========================================================
 def play_voice(text):
     clean_text = text.replace('*', '').replace('#', '')
-    tts = gTTS(text=clean_text, lang='en')
+    tts = gTTS(text=clean_text, lang='sw')
     tts.save("response.mp3")
     with open("response.mp3", "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
