@@ -21,8 +21,9 @@ st.set_page_config(page_title="Coty Butchery AI", page_icon="🥩", layout="wide
 def get_db_connection():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
-        st.error("DATABASE_URL haijawekwa kwenye Environment Variables!")
+        st.error("DATABASE_URL haijawekwa!")
         st.stop()
+
     result = urlparse(db_url)
     return psycopg2.connect(
         database=result.path[1:],
@@ -33,11 +34,13 @@ def get_db_connection():
     )
 
 # =========================================================
-# INIT DB - CREATE TABLE AUTOMATICALLY
+# INIT DB
 # =========================================================
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
+
+    # CHAT HISTORY
     cur.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
             id SERIAL PRIMARY KEY,
@@ -47,6 +50,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+
+    # ORDERS
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            id SERIAL PRIMARY KEY,
+            session_id TEXT,
+            customer_name TEXT,
+            phone_number TEXT,
+            order_details TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
     conn.commit()
     cur.close()
     conn.close()
@@ -67,166 +83,141 @@ def save_message(session_id, role, message):
     cur.close()
     conn.close()
 
-def load_messages(session_id):
+def save_order(session_id, name, phone, details):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT role, message FROM conversations WHERE session_id=%s ORDER BY created_at",
-        (session_id,)
+        """
+        INSERT INTO orders (session_id, customer_name, phone_number, order_details)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (session_id, name, phone, details)
     )
-    rows = cur.fetchall()
+    conn.commit()
     cur.close()
     conn.close()
-    return rows
 
 # =========================================================
-# GEMINI AI SETUP
+# GEMINI SETUP
 # =========================================================
 API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
 if not API_KEY:
-    st.error("Kosa: Weka GEMINI_API_KEY_RENDER kwenye environment variables!")
+    st.error("Weka GEMINI_API_KEY_RENDER")
     st.stop()
 
 client = genai.Client(api_key=API_KEY)
-GEMINI_MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.5-flash"
 
 # =========================================================
-# SYSTEM PROMPT (AI LOGIC)
+# SYSTEM PROMPT
 # =========================================================
 SYSTEM_PROMPT = """
-Wewe ni Coty, mhudumu wa wateja wa kidigitali mwenye uwezo wa AI, uliyebuniwa na Aqua Softwares. 
-Kazi yako ni Huduma kwa Wateja ya Kitaalamu ya Coty Butchery inayouza nyama na nafaka.
+Wewe ni Coty, mhudumu wa wateja wa kidigitali wa Coty Butchery.
 
-SIFA ZAKO:
-1. Adabu na Uelewa: Kuwa na adabu ya hali ya juu sana.
-2. Lugha: Kiswahili Sanifu fasaha. Ukihitajika kutumia Kiingereza, badilika haraka.
-3. Utambulisho: Jibu la kwanza anza na Salamu, jijitambulishe kama mhudumu wa Coty Butchery. 
-4. Jina la Mteja: Muulize mteja jina lake na ulitumie. Kama ni mwanamke tumia: mrembo, kipenzi, Dear au boss lady. Kama ni mwanamume tumia: HANDSOME au Brother.
-5. Ushawishi: Kuwa romantic, rafiki, na mcheshi. Tumia emoji nyingi 🌹🥩.
-6. Bidhaa na Bei (ZINGATIA HIZI TU):
-   - SANGARA WAKAVU 15,000 | DAGAA SACOVA NDOGO 7,000 | DAGAA SACOVA KUBWA 10,000
-   - DAGAA KIGOMA NUSU 33,000 | HAPPY RUSSIAN 12,000 | HAPPY BEEF VIENA 9,000
-   - SAUSAGE ALFA RUSSIAN 12,000 | FARMERS CHOICE 10,000 | SAUSAGE VIENNA KENYA 10,000
-   - KUKU KISASA (1.5KG) 14,000 | KUKU KIENYEJI 25,000 | SANGARA FILLET 32,000
+Lugha: Kiswahili Sanifu.
+Tabia: Mpole, romantic, mcheshi 🌹🥩.
 
-MAAGIZO YA ZIADA:
-- Usitaje bidhaa zote kwa pamoja. Muulize mteja anataka nini kwanza.
-- Ukigundua mteja amehuzunika, kuwa mkarimu na romantic zaidi.
-- Location: https://maps.app.goo.gl/Wp18PHX99Zvjk3f6
-- Kampeni: RUKA FOLENI NA COTY APP
-- Mwishoni mwa chat, omba feedback.
+Bidhaa na bei (ZINGATIA HIZI TU):
+- SANGARA WAKAVU 15,000
+- DAGAA SACOVA NDOGO 7,000
+- DAGAA SACOVA KUBWA 10,000
+- DAGAA KIGOMA NUSU 33,000
+- HAPPY RUSSIAN 12,000
+- HAPPY BEEF VIENA 9,000
+- SAUSAGE ALFA RUSSIAN 12,000
+- FARMERS CHOICE 10,000
+- SAUSAGE VIENNA KENYA 10,000
+- KUKU KISASA (1.5KG) 14,000
+- KUKU KIENYEJI 25,000
+- SANGARA FILLET 32,000
+
+MAAGIZO MUHIMU:
+1. Salamu kwanza, jitambulishe.
+2. Muulize mteja jina lake.
+3. Muulize namba ya simu.
+4. Mteja akishachagua bidhaa, thibitisha oda.
+5. Usitaje bidhaa zote kwa wakati mmoja.
+6. Ukishapata jina + simu + bidhaa, sema:
+   "Oda yako imepokelewa kikamilifu 🌹🥩"
 """
 
 # =========================================================
-# SESSION MANAGEMENT
+# SESSION
 # =========================================================
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    history = load_messages(st.session_state.session_id)
-    for role, msg in history:
-        st.session_state.messages.append(
-            {"role": "user" if role == "user" else "assistant", "content": msg}
-        )
+
+if "customer_name" not in st.session_state:
+    st.session_state.customer_name = ""
+
+if "phone_number" not in st.session_state:
+    st.session_state.phone_number = ""
 
 # =========================================================
-# GTTs VOICE FUNCTION
+# VOICE
 # =========================================================
 def play_voice(text):
-    clean_text = text.replace('*', '').replace('#', '')
-    tts = gTTS(text=clean_text, lang='sw')
-    tts.save("response.mp3")
-    with open("response.mp3", "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
+    tts = gTTS(text=text, lang="sw")
+    tts.save("voice.mp3")
+    with open("voice.mp3", "rb") as f:
+        audio = base64.b64encode(f.read()).decode()
         st.markdown(
             f"""
             <audio autoplay>
-            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+            <source src="data:audio/mp3;base64,{audio}">
             </audio>
             """,
             unsafe_allow_html=True
         )
 
 # =========================================================
-# SIDEBAR PAGE SELECTION
+# UI
 # =========================================================
-st.sidebar.title("Coty Butchery AI")
-page_options = ["Customer Chat"]
-# Admin page option visible tu kama password sahihi imeingizwa
-if "admin_mode" not in st.session_state:
-    st.session_state.admin_mode = False
+st.title("🥩 Coty Butchery AI")
+st.caption("Huduma bora, kwa mapenzi 🌹")
 
-if st.session_state.admin_mode:
-    page_options.append("Admin Page")
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-page = st.sidebar.radio("Chagua Page", page_options)
+if prompt := st.chat_input("Andika ujumbe..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    save_message(st.session_state.session_id, "user", prompt)
 
-# =========================================================
-# ADMIN LOGIN
-# =========================================================
-if page == "Admin Page" and not st.session_state.admin_mode:
-    pw_input = st.sidebar.text_input("Enter Admin Password", type="password")
-    if st.sidebar.button("Login"):
-        if pw_input == os.environ.get("ADMIN_PASSWORD", "1234"):
-            st.session_state.admin_mode = True
-            st.experimental_rerun()
-        else:
-            st.sidebar.error("Password si sahihi")
+    # capture name & phone simple
+    if "jina langu" in prompt.lower():
+        st.session_state.customer_name = prompt
+    if any(char.isdigit() for char in prompt):
+        st.session_state.phone_number = prompt
 
-# =========================================================
-# RENDER PAGES
-# =========================================================
-# ADMIN PAGE
-if st.session_state.admin_mode and page == "Admin Page":
-    st.title("🛠️ Admin Page - Coty Butchery AI")
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT DISTINCT session_id FROM conversations ORDER BY created_at DESC")
-    sessions = [row[0] for row in cur.fetchall()]
-    cur.close()
-    conn.close()
-    
-    selected_session = st.selectbox("Chagua session ya kuona", sessions)
-    
-    if selected_session:
-        messages = load_messages(selected_session)
-        st.markdown(f"**Conversation for session:** {selected_session}")
-        for role, msg in messages:
-            st.markdown(f"**{role.upper()}**: {msg}")
+    contents = []
+    for m in st.session_state.messages:
+        role = "user" if m["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": m["content"]}]})
 
-# CUSTOMER CHAT UI
-if page == "Customer Chat":
-    st.title("🥩 Karibu Coty Butchery AI")
-    st.caption("Mhudumu wako wa kidigitali anayekujali 🌹🥩")
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=contents,
+        config={"system_instruction": SYSTEM_PROMPT}
+    )
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    reply = response.text
 
-    if prompt := st.chat_input("Andika ujumbe hapa..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        save_message(st.session_state.session_id, "user", prompt)
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    with st.chat_message("assistant"):
+        st.markdown(reply)
+        play_voice(reply)
 
-        # AI response (no try/except)
-        gemini_contents = []
-        for m in st.session_state.messages:
-            role = "user" if m["role"] == "user" else "model"
-            gemini_contents.append({"role": role, "parts": [{"text": m["content"]}]})
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+    save_message(st.session_state.session_id, "assistant", reply)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = client.models.generate_content(
-                    model=GEMINI_MODEL,
-                    contents=gemini_contents,
-                    config={"system_instruction": SYSTEM_PROMPT, "temperature": 0.8}
-                )
-                response_text = response.text
-                st.markdown(response_text)
-                play_voice(response_text)
-                st.session_state.messages.append({"role": "assistant", "content": response_text})
-                save_message(st.session_state.session_id, "assistant", response_text)
+    # SAVE ORDER
+    if "imepokelewa" in reply.lower():
+        save_order(
+            st.session_state.session_id,
+            st.session_state.customer_name or "Haikutolewa",
+            st.session_state.phone_number or "Haikutolewa",
+            reply
+        )
