@@ -45,6 +45,3 @@ def init_db():
         role TEXT,
         message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );""")
-    cur.execute("""
-    C
