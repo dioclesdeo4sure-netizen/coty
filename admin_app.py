@@ -5,9 +5,9 @@ from urllib.parse import urlparse
 
 st.set_page_config(page_title="Coty Admin", layout="wide")
 
-# ==============================
+# =========================================================
 # DB CONNECTION
-# ==============================
+# =========================================================
 def get_db_connection():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -23,29 +23,28 @@ def get_db_connection():
         port=result.port
     )
 
-# ==============================
+# =========================================================
 # PAGE TITLE
-# ==============================
+# =========================================================
 st.title("🛠️ Coty Butchery – Admin Orders")
 
-# ==============================
+# =========================================================
 # SESSION STATE
-# ==============================
+# =========================================================
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 
-# ==============================
-# GET ADMIN PASSWORD
-# ==============================
+# =========================================================
+# ADMIN PASSWORD
+# =========================================================
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
-
 if not ADMIN_PASSWORD:
-    st.error("ADMIN_PASSWORD haijawekwa kwenye Render (Admin Service)")
+    st.error("ADMIN_PASSWORD haijawekwa")
     st.stop()
 
-# ==============================
-# LOGIN FORM
-# ==============================
+# =========================================================
+# LOGIN
+# =========================================================
 if not st.session_state.admin_logged_in:
     with st.form("login_form"):
         password_input = st.text_input("🔐 Weka Admin Password", type="password")
@@ -59,9 +58,9 @@ if not st.session_state.admin_logged_in:
             else:
                 st.error("Password si sahihi ❌")
 
-# ==============================
-# ORDERS LIST
-# ==============================
+# =========================================================
+# ORDERS VIEW
+# =========================================================
 if st.session_state.admin_logged_in:
     st.subheader("📦 Orodha ya Oda Zote")
 
@@ -82,13 +81,13 @@ if st.session_state.admin_logged_in:
         for idx, (name, phone, details, time) in enumerate(orders, start=1):
             st.markdown(f"""
             ### 🧾 ODA #{idx}
-            **Jina la Mteja:** {name}  
-            **Namba ya Simu:** {phone}  
+            **Jina:** {name}  
+            **Simu:** {phone}  
 
-            **Alichokiagiza:**  
+            **Oda:**  
             {details}
 
-            **Muda wa Oda:** {time}
+            **Muda:** {time}
             ---
             """)
 
