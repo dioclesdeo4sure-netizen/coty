@@ -14,15 +14,15 @@ st.set_page_config(
 )
 
 # =========================================================
-# AUTO REFRESH (KILA SEKUNDE 20)
+# AUTO REFRESH (KILA SEKUNDE 5)
 # =========================================================
-REFRESH_INTERVAL = 20  # seconds
+REFRESH_INTERVAL = 5
 
-if "last_refresh" not in st.session_state:
-    st.session_state.last_refresh = time.time()
+if "last_refresh_time" not in st.session_state:
+    st.session_state.last_refresh_time = time.time()
 
-if time.time() - st.session_state.last_refresh > REFRESH_INTERVAL:
-    st.session_state.last_refresh = time.time()
+if time.time() - st.session_state.last_refresh_time >= REFRESH_INTERVAL:
+    st.session_state.last_refresh_time = time.time()
     st.rerun()
 
 # =========================================================
@@ -49,24 +49,24 @@ def get_db_connection():
 st.title("🛠️ Coty Butchery – Admin Orders")
 
 # =========================================================
-# SESSION STATE (LOGIN MARA 1 TU)
+# SESSION STATE (HAIPOTEI)
 # =========================================================
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
 
-if "last_seen_order_count" not in st.session_state:
-    st.session_state.last_seen_order_count = 0
+if "last_confirmed_order_count" not in st.session_state:
+    st.session_state.last_confirmed_order_count = 0
 
 # =========================================================
 # ADMIN PASSWORD
 # =========================================================
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 if not ADMIN_PASSWORD:
-    st.error("ADMIN_PASSWORD haijawekwa kwenye environment variables")
+    st.error("ADMIN_PASSWORD haijawekwa")
     st.stop()
 
 # =========================================================
-# LOGIN FORM (MARA 1 TU)
+# LOGIN (MARA 1 TU)
 # =========================================================
 if not st.session_state.admin_logged_in:
     with st.form("login_form"):
@@ -82,7 +82,7 @@ if not st.session_state.admin_logged_in:
                 st.error("Password si sahihi ❌")
 
 # =========================================================
-# ORDERS VIEW
+# MAIN ADMIN PAGE
 # =========================================================
 if st.session_state.admin_logged_in:
 
@@ -97,23 +97,28 @@ if st.session_state.admin_logged_in:
     cur.close()
     conn.close()
 
-    current_order_count = len(orders)
+    total_orders = len(orders)
 
     # =====================================================
     # NOTIFICATION SOUND (KAMA KUNA ORDER MPYA)
     # =====================================================
-    if current_order_count > st.session_state.last_seen_order_count:
+    if total_orders > st.session_state.last_confirmed_order_count:
         st.markdown("""
-        <audio autoplay>
-            <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
-            <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.mp3" type="audio/mpeg">
+        <audio autoplay loop>
+            <source src="https://assets.mixkit.co/sfx/preview/mixkit-alarm-digital-clock-beep-989.mp3" type="audio/mpeg">
         </audio>
         """, unsafe_allow_html=True)
 
-        st.warning("🔔 ODA MPYA IMEINGIA!")
+        st.error("🔔 ODA MPYA IMEINGIA!")
 
-    # Baada ya ku-display → hesabu mpya inahesabiwa kama imesomwa
-    st.session_state.last_seen_order_count = current_order_count
+    # =====================================================
+    # CONFIRM BUTTON (ZIMA SAUTI)
+    # =====================================================
+    if total_orders > 0:
+        if st.button("✅ CONFIRM ORDER (ZIMA SAUTI)"):
+            st.session_state.last_confirmed_order_count = total_orders
+            st.success("Oda zimethibitishwa. Notification imezimwa 🔕")
+            st.rerun()
 
     # =====================================================
     # DISPLAY ORDERS
@@ -141,5 +146,5 @@ if st.session_state.admin_logged_in:
     # =====================================================
     if st.button("🚪 Logout"):
         st.session_state.admin_logged_in = False
-        st.session_state.last_seen_order_count = 0
+        st.session_state.last_confirmed_order_count = 0
         st.rerun()
