@@ -2,3 +2,4 @@ streamlit
 google-genai
 gtts
 psycopg2-binary
+st-autorefresh
