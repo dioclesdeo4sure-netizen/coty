@@ -2,4 +2,3 @@ streamlit
 google-genai
 gtts
 psycopg2-binary
-pip install streamlit psycopg2-binary google-genai
