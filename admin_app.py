@@ -2,7 +2,6 @@ import streamlit as st
 import psycopg2
 import os
 from urllib.parse import urlparse
-import time
 
 st.set_page_config(page_title="Coty Admin", page_icon="🛠️", layout="wide")
 
@@ -27,12 +26,9 @@ def get_db_connection():
 # ===========================
 # SESSION STATE
 # ===========================
-if "admin_logged_in" not in st.session_state:
-    st.session_state.admin_logged_in = False
-if "last_confirmed_order_count" not in st.session_state:
-    st.session_state.last_confirmed_order_count = 0
-if "notification_active" not in st.session_state:
-    st.session_state.notification_active = False
+st.session_state.setdefault("admin_logged_in", False)
+st.session_state.setdefault("last_confirmed_order_count", 0)
+st.session_state.setdefault("notification_active", False)
 
 # ===========================
 # ADMIN PASSWORD
@@ -43,7 +39,7 @@ if not ADMIN_PASSWORD:
     st.stop()
 
 # ===========================
-# LOGIN FORM (MARA 1 TU)
+# LOGIN PAGE
 # ===========================
 if not st.session_state.admin_logged_in:
     with st.form("login_form"):
@@ -53,10 +49,10 @@ if not st.session_state.admin_logged_in:
         if login_btn:
             if password_input.strip() == ADMIN_PASSWORD.strip():
                 st.session_state.admin_logged_in = True
-                st.success("Login successful ✅")
-                st.experimental_rerun()
+                st.success("Login successful")
+                st.rerun()
             else:
-                st.error("Password si sahihi ❌")
+                st.error("Password si sahihi")
 
 # ===========================
 # MAIN ADMIN PAGE
@@ -93,14 +89,11 @@ if st.session_state.admin_logged_in:
         """, unsafe_allow_html=True)
         st.error(f"🔔 Kuna Oda mpya: {new_orders}")
 
-    # ===========================
-    # CONFIRM BUTTON
-    # ===========================
     if st.button("✅ CONFIRM ORDER (ZIMA SAUTI)"):
         st.session_state.last_confirmed_order_count = total_orders
         st.session_state.notification_active = False
-        st.success("Oda zimethibitishwa. Notification zimezimwa 🔕")
-        st.experimental_rerun()
+        st.success("Oda zimethibitishwa")
+        st.rerun()
 
     # ===========================
     # DISPLAY ORDERS
@@ -113,27 +106,26 @@ if st.session_state.admin_logged_in:
         for idx, (name, phone, details, time_) in enumerate(orders, start=1):
             st.markdown(f"""
             ### 🧾 ODA #{idx}
-            **Jina la Mteja:** {name}  
-            **Namba ya Simu:** {phone}  
+            **Jina:** {name}  
+            **Simu:** {phone}  
 
-            **Alichokiagiza:**  
+            **Maelezo:**  
             {details}
 
-            **Muda wa Oda:** {time_}
+            **Muda:** {time_}
             ---
             """)
 
     # ===========================
-    # LOGOUT BUTTON
+    # LOGOUT
     # ===========================
     if st.button("🚪 Logout"):
         st.session_state.admin_logged_in = False
         st.session_state.last_confirmed_order_count = 0
         st.session_state.notification_active = False
-        st.experimental_rerun()
+        st.rerun()
 
     # ===========================
-    # AUTO REFRESH KILA 5s
+    # AUTO REFRESH (SAFE)
     # ===========================
-    time.sleep(5)
-    st.experimental_rerun()
+    st.autorefresh(interval=5000, key="orders_refresh")
