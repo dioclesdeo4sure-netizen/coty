@@ -4,14 +4,14 @@ import psycopg2
 from urllib.parse import urlparse
 from google import genai
 
-# ===============
+# =============================
 # PAGE CONFIG
-# ===============
-st.set_page_config(page_title="Coty Butchery AI", page_icon="🥩", layout="wide")
+# =============================
+st.set_page_config(page_title="Coty AI Customer Chat", page_icon="🥩", layout="wide")
 
-# ===============
-# DATABASE CONNECT
-# ===============
+# =============================
+# DATABASE CONNECTION
+# =============================
 def get_db_connection():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -26,13 +26,14 @@ def get_db_connection():
         port=result.port
     )
 
-# ============
-# INIT DB
-# ============
+# =============================
+# INIT DB TABLES (IF NOT EXISTS)
+# =============================
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
 
+    # customers with gender
     cur.execute("""
     CREATE TABLE IF NOT EXISTS customers (
         phone_number TEXT PRIMARY KEY,
@@ -42,6 +43,7 @@ def init_db():
     );
     """)
 
+    # conversations
     cur.execute("""
     CREATE TABLE IF NOT EXISTS conversations (
         id SERIAL PRIMARY KEY,
@@ -52,6 +54,7 @@ def init_db():
     );
     """)
 
+    # orders with gender
     cur.execute("""
     CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
@@ -69,36 +72,18 @@ def init_db():
 
 init_db()
 
-# ============
-# DB HELPERS
-# ============
+# =============================
+# HELPER FUNCTIONS
+# =============================
 def save_customer(phone, name, gender):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO customers (phone_number, customer_name, gender)
         VALUES (%s,%s,%s)
-        ON CONFLICT (phone_number)
-        DO UPDATE SET customer_name=EXCLUDED.customer_name, gender=EXCLUDED.gender
+        ON CONFLICT (phone_number) DO UPDATE
+        SET customer_name=EXCLUDED.customer_name, gender=EXCLUDED.gender
     """, (phone, name, gender))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def load_customer(phone):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT customer_name, gender FROM customers WHERE phone_number=%s", (phone,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    return row if row else (None, None)
-
-def save_message(phone, role, message):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO conversations (phone_number, role, message) VALUES (%s,%s,%s)",
-                (phone, role, message))
     conn.commit()
     cur.close()
     conn.close()
@@ -106,11 +91,25 @@ def save_message(phone, role, message):
 def load_messages(phone):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT role,message FROM conversations WHERE phone_number=%s ORDER BY created_at", (phone,))
+    cur.execute("""
+        SELECT role, message FROM conversations
+        WHERE phone_number=%s ORDER BY created_at
+    """, (phone,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
     return rows
+
+def save_message(phone, role, message):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO conversations (phone_number, role, message)
+        VALUES (%s,%s,%s)
+    """, (phone, role, message))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def save_order(phone, name, gender, details):
     conn = get_db_connection()
@@ -123,109 +122,114 @@ def save_order(phone, name, gender, details):
     cur.close()
     conn.close()
 
-# ============
-# GEMINI AI
-# ============
-API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
-if not API_KEY:
+# =============================
+# GEMINI AI INIT
+# =============================
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
+if not GEMINI_KEY:
     st.error("GEMINI_API_KEY_RENDER haijawekwa")
     st.stop()
 
-client = genai.Client(api_key=API_KEY)
+client = genai.Client(api_key=GEMINI_KEY)
 MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """
 Wewe ni Coty, mhudumu wa wateja wa Coty Butchery.
-Jibu kwa upole na uelewa.
-Tumia jina la mteja mara kwa mara.
-Usisahau mazungumzo ya nyuma.
+Jibu kwa upole na tumia jina la mteja mara kwa mara.
+Kumbuka mazungumzo yote ya nyuma.
 """
 
-# ============
+# =============================
 # SESSION STATE
-# ============
-st.session_state.setdefault("logged_in", False)
-st.session_state.setdefault("phone", "")
-st.session_state.setdefault("name", "")
-st.session_state.setdefault("gender", "")
-st.session_state.setdefault("refresh_key", 0)
+# =============================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "phone" not in st.session_state:
+    st.session_state.phone = ""
+if "name" not in st.session_state:
+    st.session_state.name = ""
+if "gender" not in st.session_state:
+    st.session_state.gender = ""
 
-# ============
+# =============================
 # LOGIN FORM
-# ============
+# =============================
 if not st.session_state.logged_in:
     st.title("🥩 Coty Butchery AI Chat")
     st.write("Tafadhali jaza taarifa zako")
+
     with st.form("login"):
         name_input = st.text_input("Jina lako")
         phone_input = st.text_input("Namba ya simu")
-        gender_input = st.selectbox("Jinsia", ["Kiume", "Kike"])
+        gender_input = st.selectbox("Jinsia yako", ["Kiume", "Kike"])
         submit = st.form_submit_button("Endelea")
 
         if submit:
-            if not name_input or not phone_input:
-                st.error("Jina na simu ni lazima")
+            if not name_input.strip() or not phone_input.strip():
+                st.error("Jina na namba ya simu ni lazima")
             else:
                 save_customer(phone_input, name_input, gender_input)
-                st.session_state.phone = phone_input
                 st.session_state.name = name_input
+                st.session_state.phone = phone_input
                 st.session_state.gender = gender_input
                 st.session_state.logged_in = True
                 st.success(f"Karibu {name_input}")
                 st.experimental_rerun()
 
-# ============
-# CHAT INTERFACE
-# ============
+# =============================
+# CHAT & INTERACTION
+# =============================
 if st.session_state.logged_in:
     phone = st.session_state.phone
     name = st.session_state.name
     gender = st.session_state.gender
 
-    st.caption(f"👤 {name} | 📞 {phone} | 👤 Jinsia: {gender}")
+    st.caption(f"👤 {name} | 📞 {phone} | Jinsia: {gender}")
 
-    # Load history
-    history = load_messages(phone)
-    for role, msg in history:
+    # show past history
+    chat_history = load_messages(phone)
+    for role, msg in chat_history:
         with st.chat_message(role):
             st.markdown(msg)
 
-    # Input area
-    user_input = st.chat_input("Andika hapa...")
+    # chat input
+    message = st.chat_input("Andika ujumbe wako...")
 
-    if user_input:
-        save_message(phone, "user", user_input)
+    if message:
+        save_message(phone, "user", message)
         with st.chat_message("user"):
-            st.markdown(user_input)
+            st.markdown(message)
 
         with st.spinner("🤖 Thinking..."):
-            # If order
-            if "oda" in user_input.lower() or "order" in user_input.lower():
-                save_order(phone, name, gender, user_input)
+            # detect order
+            low = message.lower()
+            if "oda" in low or "order" in low or "kilo" in low or "kg" in low:
+                # highlight this as order
+                save_order(phone, name, gender, message)
                 reply = f"Asante {name}! Oda yako nimeipokea na nimeituma kwa admin."
             else:
-                # Build context for Gemini
-                context = "\n".join([f"{r}:{m}" for r, m in history[-15:]])
+                # prepare context & prompt
+                context = "\n".join([f"{r}:{m}" for r, m in chat_history[-10:]])
                 prompt = f"""{SYSTEM_PROMPT}
-Mteja: {name}, Jinsia: {gender}
+
+Mteja: {name} (Jinsia: {gender})
 Historia:
 {context}
 
-Swali: {user_input}
+Swali: {message}
 """
-
-                response = client.models.generate_content(
+                # call Gemini
+                resp = client.models.generate_content(
                     model=MODEL,
                     contents=prompt
                 )
-                reply = response.text
+                reply = resp.text
 
         save_message(phone, "assistant", reply)
         with st.chat_message("assistant"):
             st.markdown(reply)
 
-    # Auto refresh UI ya chat kila sekunde 5
-    st.experimental_set_query_params(refresh=int(st.session_state.refresh_key))
-    st.session_state.refresh_key += 1
-    st.experimental_rerun()
-
+    # =============================
+    # SAFE AUTO-REFRESH
+    # =============================
+    st_autorefresh(interval=5000, key="chat_refresh")
