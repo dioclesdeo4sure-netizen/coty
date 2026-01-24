@@ -3,7 +3,6 @@ import os
 import psycopg2
 from urllib.parse import urlparse
 from google import genai
-from streamlit_autorefresh import st_autorefresh
 
 # =============================
 # PAGE CONFIG
