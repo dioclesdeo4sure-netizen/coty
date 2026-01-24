@@ -3,6 +3,7 @@ import os
 import psycopg2
 from urllib.parse import urlparse
 from google import genai
+from streamlit_autorefresh import st_autorefresh
 
 # =============================
 # PAGE CONFIG
@@ -10,7 +11,7 @@ from google import genai
 st.set_page_config(page_title="Coty AI Customer Chat", page_icon="🥩", layout="wide")
 
 # =============================
-# DATABASE CONNECTION
+# DATABASE CONNECT
 # =============================
 def get_db_connection():
     db_url = os.environ.get("DATABASE_URL")
@@ -27,18 +28,17 @@ def get_db_connection():
     )
 
 # =============================
-# INIT DB TABLES (IF NOT EXISTS)
+# INIT DB TABLES
 # =============================
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # customers with gender
+    # customers
     cur.execute("""
     CREATE TABLE IF NOT EXISTS customers (
         phone_number TEXT PRIMARY KEY,
         customer_name TEXT,
-        gender TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -54,13 +54,12 @@ def init_db():
     );
     """)
 
-    # orders with gender
+    # orders
     cur.execute("""
     CREATE TABLE IF NOT EXISTS orders (
         id SERIAL PRIMARY KEY,
         phone_number TEXT,
         customer_name TEXT,
-        gender TEXT,
         order_details TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -73,17 +72,17 @@ def init_db():
 init_db()
 
 # =============================
-# HELPER FUNCTIONS
+# DB HELPERS
 # =============================
-def save_customer(phone, name, gender):
+def save_customer(phone, name):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO customers (phone_number, customer_name, gender)
-        VALUES (%s,%s,%s)
+        INSERT INTO customers (phone_number, customer_name)
+        VALUES (%s,%s)
         ON CONFLICT (phone_number) DO UPDATE
-        SET customer_name=EXCLUDED.customer_name, gender=EXCLUDED.gender
-    """, (phone, name, gender))
+        SET customer_name = EXCLUDED.customer_name;
+    """, (phone, name))
     conn.commit()
     cur.close()
     conn.close()
@@ -93,7 +92,7 @@ def load_messages(phone):
     cur = conn.cursor()
     cur.execute("""
         SELECT role, message FROM conversations
-        WHERE phone_number=%s ORDER BY created_at
+        WHERE phone_number = %s ORDER BY created_at
     """, (phone,))
     rows = cur.fetchall()
     cur.close()
@@ -111,19 +110,19 @@ def save_message(phone, role, message):
     cur.close()
     conn.close()
 
-def save_order(phone, name, gender, details):
+def save_order(phone, name, details):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO orders (phone_number, customer_name, gender, order_details)
-        VALUES (%s,%s,%s,%s)
-    """, (phone, name, gender, details))
+        INSERT INTO orders (phone_number, customer_name, order_details)
+        VALUES (%s,%s,%s)
+    """, (phone, name, details))
     conn.commit()
     cur.close()
     conn.close()
 
 # =============================
-# GEMINI AI INIT
+# GEMINI AI
 # =============================
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
 if not GEMINI_KEY:
@@ -140,7 +139,7 @@ Kumbuka mazungumzo yote ya nyuma.
 """
 
 # =============================
-# SESSION STATE
+# SESSION STATE SETUP
 # =============================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -148,77 +147,71 @@ if "phone" not in st.session_state:
     st.session_state.phone = ""
 if "name" not in st.session_state:
     st.session_state.name = ""
-if "gender" not in st.session_state:
-    st.session_state.gender = ""
 
 # =============================
-# LOGIN FORM
+# LOGIN FORM (ONE TIME)
 # =============================
 if not st.session_state.logged_in:
-    st.title("🥩 Coty Butchery AI Chat")
-    st.write("Tafadhali jaza taarifa zako")
+    st.title("🥩 Coty AI Customer Chat")
+    st.write("Tafadhali jaza Jina na Namba ya Simu ili kuendelea")
 
     with st.form("login"):
         name_input = st.text_input("Jina lako")
         phone_input = st.text_input("Namba ya simu")
-        gender_input = st.selectbox("Jinsia yako", ["Kiume", "Kike"])
         submit = st.form_submit_button("Endelea")
 
         if submit:
             if not name_input.strip() or not phone_input.strip():
-                st.error("Jina na namba ya simu ni lazima")
+                st.error("Jina na simu ni lazima kuendelea")
             else:
-                save_customer(phone_input, name_input, gender_input)
+                save_customer(phone_input, name_input)
                 st.session_state.name = name_input
                 st.session_state.phone = phone_input
-                st.session_state.gender = gender_input
                 st.session_state.logged_in = True
                 st.success(f"Karibu {name_input}")
-                st.experimental_rerun()
+                st.rerun()
 
 # =============================
-# CHAT & INTERACTION
+# CHAT INTERFACE
 # =============================
 if st.session_state.logged_in:
     phone = st.session_state.phone
     name = st.session_state.name
-    gender = st.session_state.gender
 
-    st.caption(f"👤 {name} | 📞 {phone} | Jinsia: {gender}")
+    st.caption(f"👤 {name} | 📞 {phone}")
 
-    # show past history
-    chat_history = load_messages(phone)
-    for role, msg in chat_history:
+    # display history
+    history = load_messages(phone)
+    for role, msg in history:
         with st.chat_message(role):
             st.markdown(msg)
 
     # chat input
-    message = st.chat_input("Andika ujumbe wako...")
+    user_input = st.chat_input("Tuma ujumbe...")
 
-    if message:
-        save_message(phone, "user", message)
+    if user_input:
+        save_message(phone, "user", user_input)
         with st.chat_message("user"):
-            st.markdown(message)
+            st.markdown(user_input)
 
         with st.spinner("🤖 Thinking..."):
-            # detect order
-            low = message.lower()
-            if "oda" in low or "order" in low or "kilo" in low or "kg" in low:
-                # highlight this as order
-                save_order(phone, name, gender, message)
-                reply = f"Asante {name}! Oda yako nimeipokea na nimeituma kwa admin."
+            text_lower = user_input.lower()
+
+            # check if user is trying to order
+            if "oda" in text_lower or "order" in text_lower or "kilo" in text_lower or "kg" in text_lower:
+                save_order(phone, name, user_input)
+                reply = f"Asante {name}! Oda yako nimeipokea na kuipeleka kwa admin."
             else:
-                # prepare context & prompt
-                context = "\n".join([f"{r}:{m}" for r, m in chat_history[-10:]])
+                # build prompt with context
+                context = "\n".join([f"{r}:{m}" for r, m in history[-15:]])
                 prompt = f"""{SYSTEM_PROMPT}
 
-Mteja: {name} (Jinsia: {gender})
+Mteja: {name}
 Historia:
 {context}
 
-Swali: {message}
+Swali: {user_input}
 """
-                # call Gemini
                 resp = client.models.generate_content(
                     model=MODEL,
                     contents=prompt
@@ -230,6 +223,6 @@ Swali: {message}
             st.markdown(reply)
 
     # =============================
-    # SAFE AUTO-REFRESH
+    # SAFE AUTO‑REFRESH
     # =============================
     st_autorefresh(interval=5000, key="chat_refresh")
