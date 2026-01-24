@@ -22,7 +22,7 @@ def get_db_connection():
     return psycopg2.connect(
         database=result.path[1:],
         user=result.username,
-        password=result.password,
+       password=result.password,
         host=result.hostname,
         port=result.port
     )
